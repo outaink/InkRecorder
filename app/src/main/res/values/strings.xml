@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">InkRecorder</string>
+    <string name="all_audio_files">全部录音档案</string>
+</resources>
