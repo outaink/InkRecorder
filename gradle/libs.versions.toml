@@ -12,10 +12,6 @@ hiltVersion = "2.56.2"
 kspVersion = "2.1.21-2.0.1"
 iconExtendedVersion = "1.7.8"
 
-# navigation3
-nav3Core = "1.0.0-alpha03"
-lifecycleViewmodelNav3 = "1.0.0-alpha01"
-
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtxVersion" }
 junit = { group = "junit", name = "junit", version.ref = "junit" }
@@ -36,12 +32,6 @@ androidx-material-icon-extended = { module = "androidx.compose.material:material
 # hilt
 google-dagger-hilt-android = { group = "com.google.dagger", name = "hilt-android", version.ref = "hiltVersion" }
 google-dagger-hilt-android-compiler = { group = "com.google.dagger", name = "hilt-android-compiler", version.ref = "hiltVersion" }
-
-# navigation3
-# Core Navigation 3 libraries
-androidx-navigation3-runtime = { module = "androidx.navigation3:navigation3-runtime", version.ref = "nav3Core" }
-androidx-navigation3-ui = { module = "androidx.navigation3:navigation3-ui", version.ref = "nav3Core" }
-androidx-lifecycle-viewmodel-navigation3 = { module = "androidx.lifecycle:lifecycle-viewmodel-navigation3", version.ref = "lifecycleViewmodelNav3" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agpVersion" }
