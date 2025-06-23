@@ -1,4 +1,4 @@
-package com.outaink.inkrecorder.domain.audio
+package com.outaink.inkrecorder.data.audio
 
 import android.Manifest
 import android.media.AudioFormat

@@ -92,7 +92,7 @@ fun InitialRecorderScreenUi(
                         .width(80.dp)
                         .height(80.dp),
                     shape = FloatingActionButtonDefaults.largeShape,
-                    onClick = { /* TODO: Handle click */ }
+                    onClick = { onIntent(RecorderIntent.StartRecording) }
                 ) {
                     Icon(
                         modifier = Modifier.fillMaxSize().padding(16.dp),

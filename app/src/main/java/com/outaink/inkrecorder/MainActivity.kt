@@ -47,7 +47,7 @@ class MainActivity : ComponentActivity() {
 
                 InitialRecorderScreenUi ( // 将 ViewModel 实例或其状态和事件处理器传递给 Composable
                     recorderState = recorderState,
-                    onIntent = viewModel::onEvent,
+                    onIntent = viewModel::onIntent,
                     requestAudioPermission = {
                         requestPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
                     }
