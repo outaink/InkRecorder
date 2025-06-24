@@ -1,6 +1,5 @@
 package com.outaink.inkrecorder.ui
 
-import android.content.res.Configuration
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.aspectRatio
@@ -8,15 +7,11 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.AbsoluteRoundedCornerShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Circle
 import androidx.compose.material.icons.filled.Mic
-import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.FloatingActionButtonDefaults
@@ -33,16 +28,14 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.outaink.inkrecorder.ui.theme.InkRecorderTheme
-import com.outaink.inkrecorder.viewmodel.RecorderIntent
-import com.outaink.inkrecorder.viewmodel.RecorderUiState
 
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun InitialRecorderScreenUi(
+fun InitialMicScreenUi(
     recorderState: RecorderUiState,
-    onIntent: (RecorderIntent) -> Unit,
-    requestAudioPermission: () -> Unit
+    onIntent: (RecorderIntent) -> Unit = {},
+    requestAudioPermission: () -> Unit = {}
 ) {
     Scaffold(
         modifier = Modifier
@@ -76,7 +69,6 @@ fun InitialRecorderScreenUi(
                     modifier = Modifier.fillMaxWidth().aspectRatio(1f),
                     color = MaterialTheme.colorScheme.surfaceVariant,
                     shape = RoundedCornerShape(32.dp),
-
                 ) {
 
                 }
@@ -103,5 +95,17 @@ fun InitialRecorderScreenUi(
                 }
             }
         }
+    }
+}
+
+
+
+@Preview(showBackground = true)
+@Composable
+fun InitialMicScreenUiPreview() {
+    InkRecorderTheme {
+        InitialMicScreenUi(
+            recorderState = RecorderUiState()
+        )
     }
 }

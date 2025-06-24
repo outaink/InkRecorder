@@ -1,6 +1,7 @@
-package com.outaink.inkrecorder.viewmodel
+package com.outaink.inkrecorder.ui
 
 import android.Manifest
+import android.os.Build
 import android.util.Log
 import androidx.annotation.RequiresPermission
 import androidx.lifecycle.ViewModel
@@ -18,7 +19,7 @@ import javax.inject.Inject
 
 data class RecorderUiState(
     val broadcastPort: Int = 12346,
-    val deviceName: String = android.os.Build.MODEL,
+    val deviceName: String = Build.MODEL,
     val isRecording: Boolean = false,
     val recordedDataChunks: List<ByteArray> = emptyList(),
     val error: String? = null
