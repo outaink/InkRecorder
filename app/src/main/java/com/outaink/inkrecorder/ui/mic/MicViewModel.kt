@@ -1,14 +1,12 @@
-package com.outaink.inkrecorder.ui
+package com.outaink.inkrecorder.ui.mic
 
-import android.Manifest
 import android.os.Build
 import android.util.Log
-import androidx.annotation.RequiresPermission
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.outaink.inkrecorder.data.discovery.MicServiceAdvertiser
 import com.outaink.inkrecorder.data.audio.AudioRecorder
 import com.outaink.inkrecorder.data.audio.AudioStreamer
+import com.outaink.inkrecorder.data.discovery.MicServiceAdvertiser
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -20,9 +18,7 @@ import javax.inject.Inject
 data class RecorderUiState(
     val broadcastPort: Int = 12346,
     val deviceName: String = Build.MODEL,
-    val isRecording: Boolean = false,
-    val recordedDataChunks: List<ByteArray> = emptyList(),
-    val error: String? = null
+    val isRecording: Boolean = false
 )
 
 sealed interface RecorderIntent {
@@ -31,7 +27,8 @@ sealed interface RecorderIntent {
 }
 
 @HiltViewModel
-class RecorderViewModel @Inject constructor(
+class MicViewModel @Inject constructor(
+    private val stateMachine: MicStateMachine,
     private val serviceAdvertiser: MicServiceAdvertiser,
     private val audioRecorder: AudioRecorder,
     private val audioStreamer: AudioStreamer
@@ -44,45 +41,18 @@ class RecorderViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(RecorderUiState())
     val uiState: StateFlow<RecorderUiState> = _uiState.asStateFlow()
 
-
     init {
+        viewModelScope.launch {
+            stateMachine.state.collect { newState ->
+
+            }
+        }
         observeClientConnection()
     }
 
-    @RequiresPermission(Manifest.permission.RECORD_AUDIO)
-    fun onEvent(intent: RecorderIntent) = when (intent) {
-        RecorderIntent.StartRecording -> startAudioRecording()
-        RecorderIntent.StopRecording -> stopAudioRecording()
-    }
-
-
-    @RequiresPermission(Manifest.permission.RECORD_AUDIO)
-    private fun startAudioRecording() {
-        if (_uiState.value.isRecording) return
-
-        _uiState.update { it.copy(
-            isRecording = true,
-            error = null,
-        ) }
-
+    fun dispatch(action: MicAction) {
         viewModelScope.launch {
-            audioRecorder.startRecording(
-                onDataReceived = { data, size ->
-                    _uiState.update { currentState ->
-                        currentState.copy(recordedDataChunks = currentState.recordedDataChunks + data)
-                    }
-                },
-                onError = { exception ->
-                    _uiState.update {
-                        it.copy(
-                            isRecording = false,
-                            error = "Recording error: ${exception.localizedMessage ?: "Unknown error"}"
-                        )
-                    }
-
-                    audioRecorder.stopRecording()
-                }
-            )
+            stateMachine.dispatch(action)
         }
     }
 

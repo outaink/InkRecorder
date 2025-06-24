@@ -15,6 +15,7 @@ import kotlinx.coroutines.launch
 import java.net.DatagramPacket
 import java.net.DatagramSocket
 import java.net.InetAddress
+import java.net.SocketException
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -24,20 +25,14 @@ data class ClientInfo(val address: InetAddress, val port: Int)
 class MicServiceAdvertiser @Inject constructor(
     @ApplicationContext private val context: Context
 ) {
-
     private val nsdManager = context.getSystemService(Context.NSD_SERVICE) as NsdManager
     private var registrationListener: NsdManager.RegistrationListener? = null
     private var serviceName: String? = null
-
-    // --- 新增属性 ---
-    private var udpSocket: DatagramSocket? = null
     private var listeningJob: Job? = null
-    private val coroutineScope = CoroutineScope(Dispatchers.IO) // 用于网络操作的协程作用域
+    private val coroutineScope = CoroutineScope(Dispatchers.IO)
 
-    // 使用 StateFlow 向外部暴露客户端连接信息
     private val _clientAddressFlow = MutableStateFlow<ClientInfo?>(null)
     val clientAddressFlow = _clientAddressFlow.asStateFlow()
-    // --- 新增属性结束 ---
 
     companion object {
         const val SERVICE_TYPE = "_androidmic._udp."
@@ -51,14 +46,12 @@ class MicServiceAdvertiser @Inject constructor(
             override fun onServiceRegistered(serviceInfo: NsdServiceInfo) {
                 serviceName = serviceInfo.serviceName
                 Log.d(TAG, "✅ Service registered: $serviceName on port ${port}")
-
-                // *** 关键逻辑：服务注册成功后，开始在同一端口监听 ***
                 startListeningForClient(port)
             }
 
             override fun onRegistrationFailed(serviceInfo: NsdServiceInfo, errorCode: Int) {
                 Log.e(TAG, "Service registration failed. Error code: $errorCode")
-                cleanup() // 失败后清理
+                cleanup()
             }
 
             override fun onServiceUnregistered(serviceInfo: NsdServiceInfo) {
@@ -96,15 +89,13 @@ class MicServiceAdvertiser @Inject constructor(
     }
 
     private fun startListeningForClient(port: Int) {
-        listeningJob?.cancel() // 取消旧任务
+        listeningJob?.cancel()
 
         listeningJob = coroutineScope.launch {
             // 在这里声明 socket，确保它的作用域只在协程内
             var socket: DatagramSocket? = null
             try {
                 socket = DatagramSocket(port)
-                // udpSocket = socket // 不再需要将 socket 赋值给类成员变量
-
                 Log.d(TAG, "🎧 Now listening for client on UDP port $port...")
                 val buffer = ByteArray(10240)
                 val packet = DatagramPacket(buffer, buffer.size)
@@ -116,18 +107,11 @@ class MicServiceAdvertiser @Inject constructor(
                         TAG,
                         "🤝 Client handshake received from: ${clientIp.hostAddress}:$clientPort"
                     )
-                    _clientAddressFlow.value = ClientInfo(clientIp, clientPort)
+                    _clientAddressFlow.emit(ClientInfo(clientIp, clientPort))
                     break
                 }
             } catch (e: Exception) {
-                if (e is java.net.SocketException && (e.message?.contains("Socket closed") == true || e is java.net.BindException)) {
-                    Log.d(
-                        TAG,
-                        "Socket exception during listen (normal on cleanup or port busy): ${e.message}"
-                    )
-                } else {
-                    Log.e(TAG, "Error while listening for client", e)
-                }
+                Log.e(TAG, "Error while listening for client", e)
             } finally {
                 // 这个 finally 块是关闭 socket 的唯一责任方
                 socket?.close()

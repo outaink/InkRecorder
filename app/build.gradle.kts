@@ -53,6 +53,10 @@ dependencies {
     implementation(libs.androidx.material3)
     implementation(libs.androidx.material.icon.extended)
 
+    // FlowRedux
+    implementation(libs.flowredux.jvm)
+    implementation(libs.flowredux.compose)
+
     // dagger hilt
     implementation(libs.google.dagger.hilt.android)
     ksp(libs.google.dagger.hilt.android.compiler)
