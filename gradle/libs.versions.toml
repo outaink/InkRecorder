@@ -12,6 +12,7 @@ hiltVersion = "2.56.2"
 kspVersion = "2.1.21-2.0.1"
 iconExtendedVersion = "1.7.8"
 flowReduxVersion = "1.2.2"
+permissionVersion = "0.37.3"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtxVersion" }
@@ -37,6 +38,9 @@ google-dagger-hilt-android-compiler = { group = "com.google.dagger", name = "hil
 # FlowReduX
 flowredux-compose = { group = "com.freeletics.flowredux", name = "compose", version.ref = "flowReduxVersion" }
 flowredux-jvm = { group = "com.freeletics.flowredux", name = "flowredux-jvm", version.ref = "flowReduxVersion" }
+
+# Permission
+accompanist-permissions = { group = "com.google.accompanist", name = ":accompanist-permissions", version.ref = "permissionVersion" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agpVersion" }

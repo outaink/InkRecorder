@@ -15,7 +15,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import com.outaink.inkrecorder.ui.mic.InitialMicScreenUi
-import com.outaink.inkrecorder.ui.mic.RecorderUiState
+import com.outaink.inkrecorder.ui.mic.MicAction
+import com.outaink.inkrecorder.ui.mic.MicUiState
 import com.outaink.inkrecorder.ui.mic.MicViewModel
 import com.outaink.inkrecorder.ui.theme.InkRecorderTheme
 import dagger.hilt.android.AndroidEntryPoint
@@ -28,12 +29,17 @@ class MainActivity : ComponentActivity() {
     private val requestPermissionLauncher =
         registerForActivityResult(
             contract = ActivityResultContracts.RequestPermission()
-        ) { isGranted: Boolean ->
-            if (isGranted) {
-
+        ) { isGranted ->
+            val action = if (isGranted) {
+                PermissionAction.UserGrants
             } else {
-
+                PermissionAction.UserDenies(
+                    shouldShowRatinale = shouldShowRequestPermissionRationale(
+                        Manifest.permission.RECORD_AUDIO
+                    )
+                )
             }
+            viewModel.dispatch(action)
         }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -41,11 +47,13 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             InkRecorderTheme {
-                val recorderState by viewModel.uiState.collectAsState()
+                val micUiState by viewModel.uiState.collectAsState()
 
-                InitialMicScreenUi( // 将 ViewModel 实例或其状态和事件处理器传递给 Composable
-                    recorderState = recorderState,
-                    onIntent = viewModel::onIntent,
+                InitialMicScreenUi(
+                    uiState = micUiState,
+                    onUiAction = { action: MicAction ->
+                        viewModel.dispatch(action)
+                    },
                     requestAudioPermission = {
                         requestPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
                     }
@@ -61,8 +69,8 @@ fun AppPreview() {
     InkRecorderTheme {
         Surface(modifier = Modifier.fillMaxSize()) {
             InitialMicScreenUi(
-                recorderState = RecorderUiState(),
-                onIntent = {},
+                uiState = MicUiState.Initial(),
+                onUiAction = {},
                 requestAudioPermission = {}
             )
         }

@@ -1,6 +1,7 @@
 package com.outaink.inkrecorder.data.audio
 
 import android.Manifest
+import android.annotation.SuppressLint
 import android.media.AudioFormat
 import android.media.AudioRecord
 import android.media.MediaRecorder
@@ -16,12 +17,12 @@ import kotlinx.coroutines.runBlocking
 import javax.inject.Inject
 import javax.inject.Singleton
 
+@SuppressLint("MissingPermission")
 @Singleton
 class AudioRecorder @Inject constructor() {
-
-    private var audioRecord: AudioRecord? = null
-    private var recordingJob: Job? = null
     private val coroutineScope = CoroutineScope(Dispatchers.IO)
+
+    private var recordingJob: Job? = null
 
     @Volatile
     private var isRecording = false
@@ -34,6 +35,16 @@ class AudioRecorder @Inject constructor() {
         audioFormat = AudioFormat.ENCODING_PCM_16BIT
     )
 
+    private val audioRecord: AudioRecord by lazy {
+        AudioRecord(
+            audioSource,
+            audioConfig.sampleRate,
+            audioConfig.channelConfig,
+            audioConfig.audioFormat,
+            audioConfig.bufferSize
+        )
+    }
+
     companion object {
         const val TAG = "AudioRecorder"
     }
@@ -43,7 +54,6 @@ class AudioRecorder @Inject constructor() {
      * @param onDataReceived 音频数据回调函数
      * @param onError 错误回调函数
      */
-    @RequiresPermission(Manifest.permission.RECORD_AUDIO)
     fun startRecording(
         onDataReceived: (ByteArray, Int) -> Unit,
         onError: ((Exception) -> Unit)? = null
@@ -53,15 +63,7 @@ class AudioRecorder @Inject constructor() {
         }
 
         try {
-            audioRecord = AudioRecord(
-                audioSource,
-                audioConfig.sampleRate,
-                audioConfig.channelConfig,
-                audioConfig.audioFormat,
-                audioConfig.bufferSize
-            )
-
-            if (audioRecord?.state != AudioRecord.STATE_INITIALIZED) {
+            if (audioRecord.state != AudioRecord.STATE_INITIALIZED) {
                 val error = IllegalStateException("AudioRecord initialization failed.")
                 Log.e(TAG, error.message ?: "Unknown error")
                 onError?.invoke(error)
@@ -69,7 +71,7 @@ class AudioRecorder @Inject constructor() {
             }
 
             isRecording = true
-            audioRecord?.startRecording()
+            audioRecord.startRecording()
 
             recordingJob = coroutineScope.launch {
                 Log.d(TAG, "Recording started on thread: ${Thread.currentThread().name}")
@@ -77,11 +79,11 @@ class AudioRecorder @Inject constructor() {
 
                 try {
                     while (isActive && isRecording) {
-                        val readResult = audioRecord?.read(
+                        val readResult = audioRecord.read(
                             audioBuffer,
                             0,
                             audioBuffer.size
-                        ) ?: 0
+                        )
 
                         when {
                             readResult > 0 -> {
@@ -149,11 +151,11 @@ class AudioRecorder @Inject constructor() {
 
     private fun cleanup() {
         try {
-            if (audioRecord?.recordingState == AudioRecord.RECORDSTATE_RECORDING) {
-                audioRecord?.stop()
+            if (audioRecord.recordingState == AudioRecord.RECORDSTATE_RECORDING) {
+                audioRecord.stop()
             }
 
-            audioRecord?.release()
+            audioRecord.release()
         } catch (e: Exception) {
             Log.e(TAG, "Error during cleanup", e)
         }

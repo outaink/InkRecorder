@@ -1,5 +1,6 @@
 package com.outaink.inkrecorder.ui.mic
 
+import android.Manifest
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.aspectRatio
@@ -25,7 +26,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -41,8 +41,8 @@ import kotlin.random.Random
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun InitialMicScreenUi(
-    recorderState: RecorderUiState,
-    onIntent: (RecorderIntent) -> Unit = {},
+    uiState: MicUiState,
+    onUiAction: (MicAction) -> Unit = {},
     requestAudioPermission: () -> Unit = {}
 ) {
     Scaffold(
@@ -81,8 +81,7 @@ fun InitialMicScreenUi(
                     Box(
                         modifier = Modifier.fillMaxSize()
                     ) {
-
-                        // 自动生成的数据
+                        // TODO
                         val waveformData = remember {
                             WaveformData(
                                 amplitudes = smoothWaveform(List(200) { Random.nextFloat() * 2 - 1 }),
@@ -110,12 +109,13 @@ fun InitialMicScreenUi(
                     fontWeight = FontWeight.Bold,
                     text = "00:00:00",
                 )
+
                 FloatingActionButton(
                     modifier = Modifier
                         .width(80.dp)
                         .height(80.dp),
                     shape = FloatingActionButtonDefaults.largeShape,
-                    onClick = { onIntent(RecorderIntent.StartRecording) }
+                    onClick = { requestAudioPermission() }
                 ) {
                     Icon(
                         modifier = Modifier.fillMaxSize().padding(16.dp),
@@ -136,7 +136,7 @@ fun InitialMicScreenUi(
 fun InitialMicScreenUiPreview() {
     InkRecorderTheme {
         InitialMicScreenUi(
-            recorderState = RecorderUiState()
+            uiState = MicUiState.Initial()
         )
     }
 }

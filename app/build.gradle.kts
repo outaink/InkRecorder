@@ -61,6 +61,9 @@ dependencies {
     implementation(libs.google.dagger.hilt.android)
     ksp(libs.google.dagger.hilt.android.compiler)
 
+    // Permission
+    implementation("com.google.accompanist:accompanist-permissions:0.37.3")
+
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
