@@ -2,6 +2,7 @@ package com.outaink.inkrecorder.ui
 
 import android.content.Context
 import android.content.pm.PackageManager
+import android.util.Log
 import androidx.core.content.ContextCompat
 import com.freeletics.flowredux.dsl.FlowReduxStateMachine
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -48,21 +49,26 @@ class PermissionStateMachine @Inject constructor(
     init {
         spec {
             inState<PermissionState.Initial> {
+                Log.d(TAG, "inState<PermissionState.Initial>")
                 on<PermissionAction.Check> { action, state ->
                     state.override {
                         if (checkIfPermissionGranted(action.permission)) PermissionState.Granted
                         else PermissionState.NotRequested
                     }
                 }
+                Log.d(TAG, "on<PermissionAction.Check> end")
             }
 
             inState<PermissionState.NotRequested> {
+                Log.d(TAG, "inState<PermissionState.NotRequested>")
                 on<PermissionAction.Request> { action, state ->
                     state.override { PermissionState.Requesting }
                 }
+                Log.d(TAG, "on<PermissionAction.Request> end")
             }
 
             inState<PermissionState.Requesting> {
+                Log.d(TAG, "inState<PermissionState.Requesting>")
                 on<PermissionAction.UserGrants> { action, state ->
                     state.override { PermissionState.Granted }
                 }
@@ -76,6 +82,7 @@ class PermissionStateMachine @Inject constructor(
             }
 
             inState<PermissionState.PermanentlyDenied> {
+                Log.d(TAG, "inState<PermissionState.PermanentlyDenied>")
                 on<PermissionAction.Check> { action, state ->
                     val hasPermission = checkIfPermissionGranted(action.permission)
                     state.override {
@@ -86,6 +93,7 @@ class PermissionStateMachine @Inject constructor(
             }
 
             inState<PermissionState.Granted> {
+                Log.d(TAG, "inState<PermissionState.Granted>")
                 on<PermissionAction.Check> { action, state ->
                     val hasPermission = checkIfPermissionGranted(action.permission)
 
@@ -97,6 +105,7 @@ class PermissionStateMachine @Inject constructor(
             }
 
             inState<PermissionState.RationaleNeeded> {
+                Log.d(TAG, "inState<PermissionState.RationaleNeeded>")
                 on<PermissionAction.UserAcknowledgesRationale> { _, state ->
                     state.override {
                         PermissionState.Requesting
