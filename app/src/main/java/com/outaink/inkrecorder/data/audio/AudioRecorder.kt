@@ -27,7 +27,7 @@ class AudioRecorder @Inject constructor() {
     @Volatile
     private var isRecording = false
 
-    private val audioSource = MediaRecorder.AudioSource.VOICE_COMMUNICATION
+    private val audioSource = MediaRecorder.AudioSource.DEFAULT
 
     private val audioConfig = AudioConfig(
         sampleRate = 48000,
@@ -35,18 +35,84 @@ class AudioRecorder @Inject constructor() {
         audioFormat = AudioFormat.ENCODING_PCM_16BIT
     )
 
-    private val audioRecord: AudioRecord by lazy {
-        AudioRecord(
-            audioSource,
-            audioConfig.sampleRate,
-            audioConfig.channelConfig,
-            audioConfig.audioFormat,
-            audioConfig.bufferSize
-        )
-    }
+    private var audioRecord: AudioRecord? = null
 
     companion object {
         const val TAG = "AudioRecorder"
+    }
+
+    private fun createAudioRecord(): AudioRecord? {
+        // Try primary configuration first
+        val primaryRecord = tryCreateAudioRecord(
+            audioSource,
+            audioConfig.sampleRate,
+            audioConfig.channelConfig,
+            audioConfig.audioFormat
+        )
+        if (primaryRecord != null) return primaryRecord
+        
+        // Try fallback configurations
+        Log.w(TAG, "Primary config failed, trying fallback configurations...")
+        
+        // Try with MIC source instead of VOICE_COMMUNICATION
+        val micRecord = tryCreateAudioRecord(
+            MediaRecorder.AudioSource.MIC,
+            audioConfig.sampleRate,
+            audioConfig.channelConfig,
+            audioConfig.audioFormat
+        )
+        if (micRecord != null) return micRecord
+        
+        // Try with lower sample rate
+        val lowerSampleRateRecord = tryCreateAudioRecord(
+            MediaRecorder.AudioSource.MIC,
+            44100, // Standard CD quality
+            audioConfig.channelConfig,
+            audioConfig.audioFormat
+        )
+        if (lowerSampleRateRecord != null) return lowerSampleRateRecord
+        
+        // Final fallback: Basic configuration
+        return tryCreateAudioRecord(
+            MediaRecorder.AudioSource.MIC,
+            16000, // Phone quality
+            AudioFormat.CHANNEL_IN_MONO,
+            AudioFormat.ENCODING_PCM_16BIT
+        )
+    }
+    
+    private fun tryCreateAudioRecord(
+        audioSource: Int,
+        sampleRate: Int,
+        channelConfig: Int,
+        audioFormat: Int
+    ): AudioRecord? {
+        return try {
+            // Validate minimum buffer size
+            val minBufferSize = AudioRecord.getMinBufferSize(sampleRate, channelConfig, audioFormat)
+            
+            if (minBufferSize == AudioRecord.ERROR_BAD_VALUE) {
+                Log.w(TAG, "Invalid parameters - sampleRate: $sampleRate, channelConfig: $channelConfig, audioFormat: $audioFormat")
+                return null
+            }
+            
+            val bufferSize = minBufferSize * 4 // Use larger buffer for stability
+            Log.d(TAG, "Trying AudioRecord - source: $audioSource, sampleRate: $sampleRate, bufferSize: $bufferSize")
+            
+            val record = AudioRecord(audioSource, sampleRate, channelConfig, audioFormat, bufferSize)
+            
+            if (record.state == AudioRecord.STATE_INITIALIZED) {
+                Log.d(TAG, "AudioRecord created successfully with sampleRate: $sampleRate")
+                record
+            } else {
+                Log.w(TAG, "AudioRecord creation failed - state: ${record.state}")
+                record.release()
+                null
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Exception creating AudioRecord with sampleRate: $sampleRate", e)
+            null
+        }
     }
 
     /**
@@ -59,19 +125,25 @@ class AudioRecorder @Inject constructor() {
         onError: ((Exception) -> Unit)? = null
     ) {
         if (isRecording) {
+            Log.w(TAG, "Already recording")
             return
         }
 
         try {
-            if (audioRecord.state != AudioRecord.STATE_INITIALIZED) {
+            // Clean up any existing AudioRecord instance
+            cleanup()
+            
+            // Create new AudioRecord instance
+            audioRecord = createAudioRecord()
+            if (audioRecord == null) {
                 val error = IllegalStateException("AudioRecord initialization failed.")
-                Log.e(TAG, error.message ?: "Unknown error")
+                Log.e(TAG, error.message.toString())
                 onError?.invoke(error)
                 return
             }
 
             isRecording = true
-            audioRecord.startRecording()
+            audioRecord!!.startRecording()
 
             recordingJob = coroutineScope.launch {
                 Log.d(TAG, "Recording started on thread: ${Thread.currentThread().name}")
@@ -79,11 +151,11 @@ class AudioRecorder @Inject constructor() {
 
                 try {
                     while (isActive && isRecording) {
-                        val readResult = audioRecord.read(
+                        val readResult = audioRecord?.read(
                             audioBuffer,
                             0,
                             audioBuffer.size
-                        )
+                        ) ?: break
 
                         when {
                             readResult > 0 -> {
@@ -151,13 +223,18 @@ class AudioRecorder @Inject constructor() {
 
     private fun cleanup() {
         try {
-            if (audioRecord.recordingState == AudioRecord.RECORDSTATE_RECORDING) {
-                audioRecord.stop()
+            audioRecord?.let { record ->
+                if (record.recordingState == AudioRecord.RECORDSTATE_RECORDING) {
+                    record.stop()
+                    Log.d(TAG, "AudioRecord stopped")
+                }
+                record.release()
+                Log.d(TAG, "AudioRecord released")
             }
-
-            audioRecord.release()
+            audioRecord = null
         } catch (e: Exception) {
             Log.e(TAG, "Error during cleanup", e)
+            audioRecord = null
         }
     }
 

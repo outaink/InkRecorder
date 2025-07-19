@@ -22,11 +22,17 @@ import com.outaink.inkrecorder.ui.mic.InitialMicScreenUi
 import com.outaink.inkrecorder.ui.mic.MicAction
 import com.outaink.inkrecorder.ui.mic.MicUiState
 import com.outaink.inkrecorder.ui.mic.MicViewModel
+import com.outaink.inkrecorder.ui.mic.UiEvent
 import com.outaink.inkrecorder.ui.theme.InkRecorderTheme
 import dagger.hilt.android.AndroidEntryPoint
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
+
+    companion object {
+        const val TAG = "MainActivity"
+    }
+
     private val viewModel: MicViewModel by viewModels()
 
     private val requestPermissionLauncher =
@@ -34,16 +40,6 @@ class MainActivity : ComponentActivity() {
             contract = ActivityResultContracts.RequestPermission()
         ) { isGranted ->
             Log.d("MainActivity", "isGranted: $isGranted")
-            val action = if (isGranted) {
-                PermissionAction.UserGrants
-            } else {
-                PermissionAction.UserDenies(
-                    shouldShowRatinale = shouldShowRequestPermissionRationale(
-                        Manifest.permission.RECORD_AUDIO
-                    )
-                )
-            }
-            viewModel.dispatch(action)
         }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -51,35 +47,28 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             InkRecorderTheme {
-                val micUiState: MicUiState by viewModel.uiState.collectAsState()
-                val permissionState: PermissionState by viewModel.permissionUiState.collectAsState()
+                val micState: MicUiState by viewModel.uiState.collectAsState()
+
+                LaunchedEffect(Unit) {
+                    viewModel.uiEvents.collect { event: UiEvent ->
+                        when (event) {
+                            is UiEvent.ShowSnackbar -> {
+                                Log.d(TAG, "UiEvent.ShowSnackbar: ${event.message}")
+                            }
+
+                            is UiEvent.RequestPermission -> {
+                                requestPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                            }
+                        }
+                    }
+                }
 
                 InitialMicScreenUi(
-                    uiState = micUiState,
+                    uiState = micState,
                     onUiAction = { action: MicAction ->
                         viewModel.dispatch(action)
                     },
-                    requestAudioPermission = {
-                        requestPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
-                    }
                 )
-
-                when (val currentState = permissionState) {
-                    PermissionState.Initial -> {}
-                    is PermissionState.Granted -> {}
-                    is PermissionState.NotRequested -> {}
-                    is PermissionState.RationaleNeeded -> {
-                        Dialog(onDismissRequest = { }) {
-                            Text(
-                                text = currentState.rationale
-                            )
-                        }
-                    }
-                    is PermissionState.Requesting -> {
-
-                    }
-                    PermissionState.PermanentlyDenied -> {}
-                }
             }
         }
     }
@@ -91,9 +80,8 @@ fun AppPreview() {
     InkRecorderTheme {
         Surface(modifier = Modifier.fillMaxSize()) {
             InitialMicScreenUi(
-                uiState = MicUiState.Initial(),
+                uiState = MicUiState(),
                 onUiAction = {},
-                requestAudioPermission = {}
             )
         }
     }

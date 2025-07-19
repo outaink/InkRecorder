@@ -19,7 +19,7 @@ sealed interface PermissionState {
 }
 
 sealed interface PermissionAction {
-    data class Check(val permission: String) : PermissionAction
+    data class Check(val permission: String, val shouldShowRationale: Boolean) : PermissionAction
     data class Request(val permission: String)  : PermissionAction
     data object UserAcknowledgesRationale : PermissionAction
     data object UserGrants : PermissionAction
@@ -49,26 +49,28 @@ class PermissionStateMachine @Inject constructor(
     init {
         spec {
             inState<PermissionState.Initial> {
-                Log.d(TAG, "inState<PermissionState.Initial>")
                 on<PermissionAction.Check> { action, state ->
                     state.override {
-                        if (checkIfPermissionGranted(action.permission)) PermissionState.Granted
-                        else PermissionState.NotRequested
+                        if (checkIfPermissionGranted(action.permission)) {
+                            PermissionState.Granted
+                        } else if (action.shouldShowRationale) {
+                            PermissionState.RationaleNeeded(rationale = RATIONALE)
+                        } else {
+                            PermissionState.NotRequested
+                        }
                     }
                 }
-                Log.d(TAG, "on<PermissionAction.Check> end")
-            }
 
-            inState<PermissionState.NotRequested> {
-                Log.d(TAG, "inState<PermissionState.NotRequested>")
                 on<PermissionAction.Request> { action, state ->
                     state.override { PermissionState.Requesting }
                 }
-                Log.d(TAG, "on<PermissionAction.Request> end")
+            }
+
+            inState<PermissionState.NotRequested> {
+
             }
 
             inState<PermissionState.Requesting> {
-                Log.d(TAG, "inState<PermissionState.Requesting>")
                 on<PermissionAction.UserGrants> { action, state ->
                     state.override { PermissionState.Granted }
                 }
@@ -82,7 +84,6 @@ class PermissionStateMachine @Inject constructor(
             }
 
             inState<PermissionState.PermanentlyDenied> {
-                Log.d(TAG, "inState<PermissionState.PermanentlyDenied>")
                 on<PermissionAction.Check> { action, state ->
                     val hasPermission = checkIfPermissionGranted(action.permission)
                     state.override {
@@ -93,7 +94,6 @@ class PermissionStateMachine @Inject constructor(
             }
 
             inState<PermissionState.Granted> {
-                Log.d(TAG, "inState<PermissionState.Granted>")
                 on<PermissionAction.Check> { action, state ->
                     val hasPermission = checkIfPermissionGranted(action.permission)
 
@@ -105,7 +105,6 @@ class PermissionStateMachine @Inject constructor(
             }
 
             inState<PermissionState.RationaleNeeded> {
-                Log.d(TAG, "inState<PermissionState.RationaleNeeded>")
                 on<PermissionAction.UserAcknowledgesRationale> { _, state ->
                     state.override {
                         PermissionState.Requesting

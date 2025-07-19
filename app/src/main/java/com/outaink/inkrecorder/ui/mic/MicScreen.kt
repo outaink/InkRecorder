@@ -1,6 +1,5 @@
 package com.outaink.inkrecorder.ui.mic
 
-import android.Manifest
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.aspectRatio
@@ -13,6 +12,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.FloatingActionButtonDefaults
@@ -23,19 +23,26 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.outaink.inkrecorder.ui.DrawMode
 import com.outaink.inkrecorder.ui.Waveform
-import com.outaink.inkrecorder.ui.WaveformData
-import com.outaink.inkrecorder.ui.WaveformProcessor.smoothWaveform
 import com.outaink.inkrecorder.ui.WaveformStyle
 import com.outaink.inkrecorder.ui.theme.InkRecorderTheme
-import kotlin.random.Random
+
+/**
+ * Formats elapsed time in milliseconds to MM:SS format
+ */
+private fun formatElapsedTime(elapsedTimeMs: Long): String {
+    val totalSeconds = elapsedTimeMs / 1000
+    val minutes = totalSeconds / 60
+    val seconds = totalSeconds % 60
+    return String.format("%02d:%02d", minutes, seconds)
+}
 
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -43,7 +50,6 @@ import kotlin.random.Random
 fun InitialMicScreenUi(
     uiState: MicUiState,
     onUiAction: (MicAction) -> Unit = {},
-    requestAudioPermission: () -> Unit = {}
 ) {
     Scaffold(
         modifier = Modifier
@@ -51,7 +57,7 @@ fun InitialMicScreenUi(
         topBar = {
             TopAppBar(
                 modifier = Modifier.fillMaxWidth(),
-                title = {  },
+                title = { },
                 navigationIcon = {
                     Icon(
                         modifier = Modifier
@@ -74,54 +80,90 @@ fun InitialMicScreenUi(
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Surface(
-                    modifier = Modifier.fillMaxWidth().aspectRatio(1f),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .aspectRatio(1f),
                     color = MaterialTheme.colorScheme.surfaceVariant,
                     shape = RoundedCornerShape(32.dp),
                 ) {
                     Box(
                         modifier = Modifier.fillMaxSize()
                     ) {
-                        // TODO
-                        val waveformData = remember {
-                            WaveformData(
-                                amplitudes = smoothWaveform(List(200) { Random.nextFloat() * 2 - 1 }),
-                                progress = 0.3f
-                            )
-                        }
-
                         Waveform(
                             modifier = Modifier
-                                .fillMaxWidth()
-                                .align(Alignment.Center),
-                            data = waveformData,
+                                .fillMaxSize()
+                                .align(Alignment.Center)
+                                .padding(16.dp),
+                            data = uiState.waveformData,
                             style = WaveformStyle(
                                 drawMode = DrawMode.Bars,
-                                waveColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
-                                progressColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                waveColor = if (uiState.isRecording)
+                                    MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)
+                                else
+                                    MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.2f),
+                                progressColor = if (uiState.isRecording)
+                                    MaterialTheme.colorScheme.primary
+                                else
+                                    MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                                animationIntensity = if (uiState.isRecording) 1.3f else 1.0f
                             )
                         )
                     }
                 }
 
+                // Error message or recording status
+                if (uiState.error != null) {
+                    Text(
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.error,
+                        textAlign = TextAlign.Center,
+                        text = uiState.error
+                    )
+                } else {
+                    Text(
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center,
+                        text = if (uiState.isRecording) "Recording..." else "Ready to record"
+                    )
+                }
+                
                 Text(
-                    modifier = Modifier.padding(16.dp),
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
                     style = MaterialTheme.typography.headlineLarge,
                     fontWeight = FontWeight.Bold,
-                    text = "00:00:00",
+                    color = if (uiState.isRecording) 
+                        MaterialTheme.colorScheme.primary 
+                    else 
+                        MaterialTheme.colorScheme.onSurface,
+                    textAlign = TextAlign.Center,
+                    text = formatElapsedTime(uiState.elapsedTimeMs)
                 )
 
                 FloatingActionButton(
                     modifier = Modifier
                         .width(80.dp)
-                        .height(80.dp),
+                        .height(80.dp)
+                        .padding(top = 16.dp),
                     shape = FloatingActionButtonDefaults.largeShape,
-                    onClick = { requestAudioPermission() }
+                    containerColor = if (uiState.isRecording) 
+                        MaterialTheme.colorScheme.errorContainer 
+                    else 
+                        MaterialTheme.colorScheme.primaryContainer,
+                    contentColor = if (uiState.isRecording)
+                        MaterialTheme.colorScheme.onErrorContainer
+                    else
+                        MaterialTheme.colorScheme.onPrimaryContainer,
+                    onClick = { onUiAction(MicAction.ClickMicButton) }
                 ) {
                     Icon(
-                        modifier = Modifier.fillMaxSize().padding(16.dp),
-                        imageVector = Icons.Filled.Mic,
-                        tint = MaterialTheme.colorScheme.onPrimary,
-                        contentDescription = "Start Recording"
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(20.dp),
+                        imageVector = if (uiState.isRecording) Icons.Filled.Stop else Icons.Filled.Mic,
+                        contentDescription = if (uiState.isRecording) "Stop Recording" else "Start Recording"
                     )
                 }
             }
@@ -130,13 +172,25 @@ fun InitialMicScreenUi(
 }
 
 
-
 @Preview(showBackground = true)
 @Composable
 fun InitialMicScreenUiPreview() {
     InkRecorderTheme {
         InitialMicScreenUi(
-            uiState = MicUiState.Initial()
+            uiState = MicUiState()
+        )
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+fun InitialMicScreenUiRecordingPreview() {
+    InkRecorderTheme {
+        InitialMicScreenUi(
+            uiState = MicUiState(
+                isRecording = true,
+                elapsedTimeMs = 65000L // 1 minute 5 seconds
+            )
         )
     }
 }
