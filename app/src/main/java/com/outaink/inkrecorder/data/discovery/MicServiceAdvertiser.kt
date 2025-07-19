@@ -19,7 +19,10 @@ import java.net.SocketException
 import javax.inject.Inject
 import javax.inject.Singleton
 
-data class ClientInfo(val address: InetAddress, val port: Int)
+data class ClientInfo(
+    val address: InetAddress,
+    val listeningPort: Int // Port where client is listening for audio stream
+)
 
 @Singleton
 class MicServiceAdvertiser @Inject constructor(
@@ -103,12 +106,29 @@ class MicServiceAdvertiser @Inject constructor(
                     socket.receive(packet) // 使用局部变量 socket
                     val clientIp = packet.address
                     val clientPort = packet.port
-                    Log.d(
-                        TAG,
-                        "🤝 Client handshake received from: ${clientIp.hostAddress}:$clientPort"
-                    )
-                    _clientAddressFlow.emit(ClientInfo(clientIp, clientPort))
-                    break
+                    
+                    // Parse the received message
+                    val messageBytes = ByteArray(packet.length)
+                    System.arraycopy(packet.data, packet.offset, messageBytes, 0, packet.length)
+                    val message = String(messageBytes, Charsets.UTF_8)
+                    
+                    Log.d(TAG, "🤝 Client handshake received from: ${clientIp.hostAddress}:$clientPort")
+                    Log.d(TAG, "📨 Message content: $message")
+                    
+                    // Parse CONNECT:<port> message
+                    if (message.startsWith("CONNECT:")) {
+                        try {
+                            val listeningPort = message.substring(8).toInt()
+                            Log.d(TAG, "✅ Parsed client listening port: $listeningPort")
+                            
+                            _clientAddressFlow.emit(ClientInfo(clientIp, listeningPort))
+                            break
+                        } catch (e: NumberFormatException) {
+                            Log.e(TAG, "❌ Invalid CONNECT message format: $message", e)
+                        }
+                    } else {
+                        Log.w(TAG, "⚠️ Unknown handshake message format: $message")
+                    }
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "Error while listening for client", e)

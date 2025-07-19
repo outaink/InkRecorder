@@ -18,7 +18,6 @@ interface AudioStreamer {
 
     /**
      * 开始向已设置的目标推流。
-     * 为了测试，它会内部生成并发送一个字节流。
      */
     fun startStreaming()
 
@@ -26,4 +25,11 @@ interface AudioStreamer {
      * 停止推流。
      */
     fun stopStreaming()
+    
+    /**
+     * 发送音频数据到目标设备
+     * @param audioData 音频数据字节数组
+     * @param length 有效数据长度
+     */
+    fun sendAudioData(audioData: ByteArray, length: Int)
 }

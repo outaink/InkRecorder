@@ -2,6 +2,8 @@ package com.outaink.inkrecorder.ui.mic
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -13,11 +15,15 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Stop
+import androidx.compose.material.icons.filled.Wifi
+import androidx.compose.material.icons.filled.WifiOff
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.FloatingActionButtonDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -66,6 +72,44 @@ fun InitialMicScreenUi(
                         imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                         contentDescription = "Back"
                     )
+                },
+                actions = {
+                    // Pairing status and button
+                    Row(
+                        modifier = Modifier.padding(horizontal = 16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        if (uiState.isPaired) {
+                            Text(
+                                text = "Paired",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                        }
+                        
+                        IconButton(
+                            onClick = { onUiAction(MicAction.ClickPairingButton) }
+                        ) {
+                            Icon(
+                                imageVector = when {
+                                    uiState.isPaired -> Icons.Filled.Wifi
+                                    uiState.isPairing -> Icons.Filled.WifiOff
+                                    else -> Icons.Filled.WifiOff
+                                },
+                                contentDescription = when {
+                                    uiState.isPaired -> "Disconnect from paired device"
+                                    uiState.isPairing -> "Stop pairing"
+                                    else -> "Start pairing"
+                                },
+                                tint = when {
+                                    uiState.isPaired -> MaterialTheme.colorScheme.primary
+                                    uiState.isPairing -> MaterialTheme.colorScheme.secondary
+                                    else -> MaterialTheme.colorScheme.onSurfaceVariant
+                                }
+                            )
+                        }
+                    }
                 }
             )
         }
@@ -142,6 +186,25 @@ fun InitialMicScreenUi(
                     text = formatElapsedTime(uiState.elapsedTimeMs)
                 )
 
+                // Pairing status information
+                if (uiState.isPairing) {
+                    Text(
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.secondary,
+                        textAlign = TextAlign.Center,
+                        text = "Waiting for device to connect..."
+                    )
+                } else if (uiState.isPaired && uiState.pairedClientInfo != null) {
+                    Text(
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.primary,
+                        textAlign = TextAlign.Center,
+                        text = "Connected to: ${uiState.pairedClientInfo}"
+                    )
+                }
+
                 FloatingActionButton(
                     modifier = Modifier
                         .width(80.dp)
@@ -190,6 +253,31 @@ fun InitialMicScreenUiRecordingPreview() {
             uiState = MicUiState(
                 isRecording = true,
                 elapsedTimeMs = 65000L // 1 minute 5 seconds
+            )
+        )
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+fun InitialMicScreenUiPairingPreview() {
+    InkRecorderTheme {
+        InitialMicScreenUi(
+            uiState = MicUiState(
+                isPairing = true
+            )
+        )
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+fun InitialMicScreenUiPairedPreview() {
+    InkRecorderTheme {
+        InitialMicScreenUi(
+            uiState = MicUiState(
+                isPaired = true,
+                pairedClientInfo = "192.168.1.100:54321"
             )
         )
     }

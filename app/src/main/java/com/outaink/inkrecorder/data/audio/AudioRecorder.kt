@@ -30,7 +30,7 @@ class AudioRecorder @Inject constructor() {
     private val audioSource = MediaRecorder.AudioSource.DEFAULT
 
     private val audioConfig = AudioConfig(
-        sampleRate = 48000,
+        sampleRate = 44100, // Changed to 44.1kHz for macOS client compatibility
         channelConfig = AudioFormat.CHANNEL_IN_MONO,
         audioFormat = AudioFormat.ENCODING_PCM_16BIT
     )
@@ -102,7 +102,11 @@ class AudioRecorder @Inject constructor() {
             val record = AudioRecord(audioSource, sampleRate, channelConfig, audioFormat, bufferSize)
             
             if (record.state == AudioRecord.STATE_INITIALIZED) {
-                Log.d(TAG, "AudioRecord created successfully with sampleRate: $sampleRate")
+                Log.d(TAG, "AudioRecord created successfully:")
+                Log.d(TAG, "  Sample Rate: $sampleRate Hz")
+                Log.d(TAG, "  Channel Config: $channelConfig") 
+                Log.d(TAG, "  Audio Format: $audioFormat")
+                Log.d(TAG, "  Buffer Size: $bufferSize bytes")
                 record
             } else {
                 Log.w(TAG, "AudioRecord creation failed - state: ${record.state}")

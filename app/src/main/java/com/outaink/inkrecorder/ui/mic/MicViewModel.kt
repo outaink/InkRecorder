@@ -11,23 +11,20 @@ import androidx.lifecycle.viewModelScope
 import com.outaink.inkrecorder.data.audio.AudioRecorder
 import com.outaink.inkrecorder.data.audio.AudioStreamer
 import com.outaink.inkrecorder.data.discovery.MicServiceAdvertiser
-import com.outaink.inkrecorder.ui.PermissionAction
-import com.outaink.inkrecorder.ui.PermissionState
-import com.outaink.inkrecorder.ui.PermissionStateMachine
 import com.outaink.inkrecorder.ui.WaveformData
-import com.outaink.inkrecorder.ui.WaveformProcessor.smoothWaveform
 import com.outaink.inkrecorder.ui.WaveformProcessor
+import com.outaink.inkrecorder.ui.WaveformProcessor.smoothWaveform
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.Job
 import javax.inject.Inject
 
 data class MicUiState(
@@ -39,13 +36,16 @@ data class MicUiState(
         progress = 0f
     ),
     val elapsedTimeMs: Long = 0L,
+    val isPairing: Boolean = false,
+    val isPaired: Boolean = false,
+    val pairedClientInfo: String? = null,
     val error: String? = null
 )
 
 
 sealed interface MicAction {
     data object ClickMicButton : MicAction
-
+    data object ClickPairingButton : MicAction
 }
 
 sealed interface UiEvent {
@@ -77,6 +77,40 @@ class MicViewModel @Inject constructor(
     private var frameCounter = 0
     private var timerJob: Job? = null
     private var recordingStartTime = 0L
+    
+    init {
+        // Monitor client connections
+        viewModelScope.launch {
+            micServiceAdvertiser.clientAddressFlow.collect { clientInfo ->
+                if (clientInfo != null) {
+                    // Set up audio streaming target
+                    audioStreamer.setTarget(clientInfo.address, clientInfo.listeningPort)
+                    
+                    _uiState.update { 
+                        it.copy(
+                            isPairing = false,
+                            isPaired = true,
+                            pairedClientInfo = "${clientInfo.address.hostAddress}:${clientInfo.listeningPort}",
+                            error = null
+                        )
+                    }
+                    Log.d(TAG, "Client paired: ${clientInfo.address.hostAddress}:${clientInfo.listeningPort}")
+                    Log.d(TAG, "Audio streaming target set to: ${clientInfo.address.hostAddress}:${clientInfo.listeningPort}")
+                } else {
+                    // Stop streaming when client disconnects
+                    audioStreamer.stopStreaming()
+                    
+                    _uiState.update { 
+                        it.copy(
+                            isPaired = false,
+                            pairedClientInfo = null
+                        )
+                    }
+                    Log.d(TAG, "Client disconnected, audio streaming stopped")
+                }
+            }
+        }
+    }
 
     fun dispatch(action: MicAction) {
         viewModelScope.launch {
@@ -92,7 +126,14 @@ class MicViewModel @Inject constructor(
                         send(UiEvent.RequestPermission(Manifest.permission.RECORD_AUDIO))
                     }
                 }
-
+                
+                is MicAction.ClickPairingButton -> {
+                    if (!uiState.value.isPairing && !uiState.value.isPaired) {
+                        startPairing()
+                    } else {
+                        stopPairing()
+                    }
+                }
             }
         }
     }
@@ -106,6 +147,12 @@ class MicViewModel @Inject constructor(
         // Start timer to update elapsed time
         startTimer()
         
+        // Start audio streaming if paired
+        if (uiState.value.isPaired) {
+            audioStreamer.startStreaming()
+            Log.d(TAG, "Audio streaming started to paired client")
+        }
+        
         Log.d(TAG, "Starting microphone recording")
         
         audioRecorder.startRecording(
@@ -114,6 +161,11 @@ class MicViewModel @Inject constructor(
                     val waveformData = processAudioData(audioData, bytesRead)
                     logAudioData(audioData, bytesRead, waveformData)
                     
+                    // Send audio data to paired client if streaming
+                    if (uiState.value.isPaired && audioStreamer.isStreaming.value) {
+                        audioStreamer.sendAudioData(audioData, bytesRead)
+                    }
+                    
                     _uiState.update { it.copy(waveformData = waveformData) }
                     frameCounter++
                 }
@@ -121,6 +173,7 @@ class MicViewModel @Inject constructor(
             onError = { exception ->
                 Log.e(TAG, "Audio recording error", exception)
                 stopTimer()
+                audioStreamer.stopStreaming()
                 _uiState.update { 
                     it.copy(
                         isRecording = false,
@@ -135,6 +188,12 @@ class MicViewModel @Inject constructor(
         Log.d(TAG, "Stopping microphone recording")
         audioRecorder.stopRecording()
         stopTimer()
+        
+        // Stop audio streaming when recording stops
+        if (audioStreamer.isStreaming.value) {
+            audioStreamer.stopStreaming()
+            Log.d(TAG, "Audio streaming stopped")
+        }
         
         _uiState.update { 
             it.copy(
@@ -168,6 +227,48 @@ class MicViewModel @Inject constructor(
         timerJob = null
     }
     
+    private fun startPairing() {
+        Log.d(TAG, "Starting service discovery pairing...")
+        _uiState.update { 
+            it.copy(
+                isPairing = true,
+                isPaired = false,
+                pairedClientInfo = null,
+                error = null
+            )
+        }
+        
+        try {
+            // Register the service with current port and device name
+            micServiceAdvertiser.registerService(
+                port = uiState.value.broadcastPort,
+                deviceName = uiState.value.deviceName
+            )
+            Log.d(TAG, "Service registration initiated on port ${uiState.value.broadcastPort}")
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to start pairing", e)
+            _uiState.update { 
+                it.copy(
+                    isPairing = false,
+                    error = "Pairing failed: ${e.message}"
+                )
+            }
+        }
+    }
+    
+    private fun stopPairing() {
+        Log.d(TAG, "Stopping service discovery pairing...")
+        micServiceAdvertiser.cleanup()
+        _uiState.update { 
+            it.copy(
+                isPairing = false,
+                isPaired = false,
+                pairedClientInfo = null,
+                error = null
+            )
+        }
+    }
+    
     private fun processAudioData(audioData: ByteArray, bytesRead: Int): WaveformData {
         // Convert byte array to short array (16-bit PCM)
         val shortArray = ShortArray(bytesRead / 2)
@@ -190,7 +291,7 @@ class MicViewModel @Inject constructor(
         
         // Generate frequency spectrum data
         val frequencies = if (shortArray.isNotEmpty()) {
-            WaveformProcessor.processAudioToFrequency(shortArray, 48000, targetSize)
+            WaveformProcessor.processAudioToFrequency(shortArray, 44100, targetSize)
         } else {
             List(targetSize) { 0f }
         }
@@ -237,7 +338,8 @@ class MicViewModel @Inject constructor(
                 else -> "Low-Freq" // 20-100Hz (bass, drums)
             }
             
-            Log.d(TAG, "Frame $frameCounter - Bytes: $bytesRead, RMS: ${String.format("%.3f", rmsLevel)}, Max: ${String.format("%.3f", maxAmplitude)}, Level: $audioLevel")
+            val streamingStatus = if (audioStreamer.isStreaming.value) "STREAMING" else "LOCAL-ONLY"
+            Log.d(TAG, "Frame $frameCounter - Bytes: $bytesRead, RMS: ${String.format("%.3f", rmsLevel)}, Max: ${String.format("%.3f", maxAmplitude)}, Level: $audioLevel, Status: $streamingStatus")
             Log.d(TAG, "Frequency - Avg: ${String.format("%.3f", avgFreqIntensity)}, Max: ${String.format("%.3f", maxFreqIntensity)}, Dominant: $freqBandName (band $dominantFreqBand)")
             
             // Log detailed waveform data every 100th frame

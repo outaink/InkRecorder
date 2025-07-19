@@ -22,6 +22,7 @@ class AudioStreamerImpl @Inject constructor() : AudioStreamer {
 
     private val coroutineScope = CoroutineScope(Dispatchers.IO)
     private var streamingJob: Job? = null
+    private var socket: DatagramSocket? = null
 
     private var targetAddress: InetAddress? = null
     private var targetPort: Int = -1
@@ -50,60 +51,54 @@ class AudioStreamerImpl @Inject constructor() : AudioStreamer {
         }
 
         // 取消上一个可能存在的任务，确保只有一个推流任务在运行
-        streamingJob?.cancel()
+        stopStreaming()
 
-        // 启动一个新的协程来处理网络推流
-        streamingJob = coroutineScope.launch {
+        try {
+            socket = DatagramSocket() // 创建 UDP socket
             _isStreaming.value = true
-            var socket: DatagramSocket? = null
-            var counter = 0L // 用于生成测试数据的计数器
-
-            try {
-                socket = DatagramSocket() // 创建 UDP socket
-                Log.i(TAG, "🚀 Streaming started to ${targetAddress!!.hostAddress}:$targetPort")
-
-                // 只要协程是活跃的，就持续推流
-                while (isActive) {
-                    counter++
-                    val message = "Packet No. $counter from Android"
-                    val data = message.toByteArray(Charsets.UTF_8)
-
-                    val packet = DatagramPacket(
-                        data,
-                        data.size,
-                        targetAddress,
-                        targetPort
-                    )
-
-                    socket.send(packet) // 发送数据包
-                    Log.d(TAG, "Sent: $message")
-
-                    // 模拟真实音频包的速率，例如每 100 毫秒发一个包
-                    delay(100)
-                }
-            } catch (e: Exception) {
-                // 协程被取消时会抛出 CancellationException，这是正常行为，无需打印错误
-                if (e is kotlinx.coroutines.CancellationException) {
-                    Log.i(TAG, "Streaming cancelled.")
-                } else {
-                    Log.e(TAG, "An error occurred during streaming", e)
-                }
-            } finally {
-                // 确保资源被释放
-                Log.i(TAG, "🛑 Streaming stopped.")
-                socket?.close()
-                _isStreaming.value = false
-            }
+            Log.i(TAG, "🚀 Audio streaming started to ${targetAddress!!.hostAddress}:$targetPort")
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to create UDP socket for streaming", e)
+            _isStreaming.value = false
         }
     }
 
     override fun stopStreaming() {
-        if (!_isStreaming.value) {
-            Log.d(TAG, "Streamer is not running.")
-            return
-        }
+        Log.i(TAG, "🛑 Audio streaming stopped.")
+        socket?.close()
+        socket = null
+        _isStreaming.value = false
+
         // 取消协程是停止 while(isActive) 循环并触发 finally 块的最安全方式
         streamingJob?.cancel()
         streamingJob = null
+    }
+
+    override fun sendAudioData(audioData: ByteArray, length: Int) {
+        if (!_isStreaming.value || socket == null || targetAddress == null || targetPort == -1) {
+            return // Skip if not streaming or not properly configured
+        }
+
+        // Launch on IO dispatcher to avoid NetworkOnMainThreadException
+        coroutineScope.launch(Dispatchers.IO) {
+            try {
+                // Create a new array with exact length to avoid sending extra bytes
+                val trimmedData = ByteArray(length)
+                System.arraycopy(audioData, 0, trimmedData, 0, length)
+
+                val packet = DatagramPacket(
+                    trimmedData,
+                    length,
+                    targetAddress,
+                    targetPort
+                )
+
+                socket?.send(packet)
+                Log.v(TAG, "Sent ${length} bytes of audio data") // Verbose logging for debugging
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to send audio data", e)
+                // Don't stop streaming on individual packet failures
+            }
+        }
     }
 }
